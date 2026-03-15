@@ -1,0 +1,43 @@
+# Bank-specific parsing rules for PDF statement extraction
+
+banks:
+  bank_of_america:
+    name: "Bank of America"
+    patterns:
+      account_number: 'Account number ending in (\d{4})'
+      statement_period: 'Statement period: (\d{1,2}/\d{1,2}/\d{4}) - (\d{1,2}/\d{1,2}/\d{4})'
+      transaction_start: 'Deposits and other additions'
+      transaction_columns:
+        - date
+        - description
+        - amount
+        - balance
+    date_format: "%m/%d/%Y"
+    transaction_amount_pattern: '[\$\s]*([\d,]+\.\d{2})'
+
+  techcu:
+    name: "Technology Credit Union"
+    patterns:
+      account_number: 'Account: .*?(\d{4})'
+      statement_period: '(\d{1,2}/\d{1,2}/\d{4})\s*-\s*(\d{1,2}/\d{1,2}/\d{4})'
+      transaction_start: 'Transaction Details'
+      transaction_columns:
+        - date
+        - description
+        - amount
+        - balance
+    date_format: "%m/%d/%Y"
+    transaction_amount_pattern: '[\$\s]*([\d,]+\.\d{2})'
+
+  chase:
+    name: "Chase"
+    patterns:
+      account_number: 'Account number: .*?(\d{4})'
+      statement_period: 'Statement Date: (\d{1,2}/\d{1,2}/\d{4})'
+      transaction_start: 'ACCOUNT ACTIVITY'
+      transaction_columns:
+        - date
+        - description
+        - amount
+    date_format: "%m/%d/%y"
+    transaction_amount_pattern: '[\$\s]*([\d,]+\.\d{2})'

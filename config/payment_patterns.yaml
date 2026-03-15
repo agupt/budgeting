@@ -1,0 +1,107 @@
+# Payment destination detection patterns
+
+payment_destinations:
+  credit_cards:
+    - pattern: '(?i)chase.*credit|chase.*card'
+      name: 'Chase Credit Card'
+      institution: 'Chase'
+      type: 'credit_card'
+
+    - pattern: '(?i)citi.*card|citibank.*payment'
+      name: 'Citibank Credit Card'
+      institution: 'Citibank'
+      type: 'credit_card'
+
+    - pattern: '(?i)american express|amex'
+      name: 'American Express'
+      institution: 'American Express'
+      type: 'credit_card'
+
+    - pattern: '(?i)discover.*card'
+      name: 'Discover Card'
+      institution: 'Discover'
+      type: 'credit_card'
+
+    - pattern: '(?i)capital one|cap one|capitalone'
+      name: 'Capital One Credit Card'
+      institution: 'Capital One'
+      type: 'credit_card'
+
+    - pattern: '(?i)bank of america.*card|boa.*card'
+      name: 'Bank of America Credit Card'
+      institution: 'Bank of America'
+      type: 'credit_card'
+
+  payment_services:
+    - pattern: '(?i)paypal|pay pal'
+      name: 'PayPal'
+      institution: 'PayPal'
+      type: 'payment_service'
+
+    - pattern: '(?i)venmo'
+      name: 'Venmo'
+      institution: 'Venmo'
+      type: 'payment_service'
+
+    - pattern: '(?i)zelle'
+      name: 'Zelle'
+      institution: 'Zelle'
+      type: 'transfer'
+
+    - pattern: '(?i)cash app|cashapp'
+      name: 'Cash App'
+      institution: 'Cash App'
+      type: 'payment_service'
+
+  utilities:
+    - pattern: '(?i)pg&e|pacific gas'
+      name: 'PG&E'
+      institution: 'PG&E'
+      type: 'bill'
+
+    - pattern: '(?i)comcast|xfinity'
+      name: 'Comcast/Xfinity'
+      institution: 'Comcast'
+      type: 'bill'
+
+    - pattern: '(?i)at&t'
+      name: 'AT&T'
+      institution: 'AT&T'
+      type: 'bill'
+
+    - pattern: '(?i)verizon'
+      name: 'Verizon'
+      institution: 'Verizon'
+      type: 'bill'
+
+  transfers:
+    - pattern: '(?i)online transfer|xfer|transfer to|transfer from'
+      name: 'Internal Transfer'
+      institution: null
+      type: 'transfer'
+
+    - pattern: '(?i)ach.*debit|ach.*credit'
+      name: 'ACH Transfer'
+      institution: null
+      type: 'transfer'
+
+    - pattern: '(?i)wire transfer|wire.*debit|wire.*credit'
+      name: 'Wire Transfer'
+      institution: null
+      type: 'transfer'
+
+  other:
+    - pattern: '(?i)atm withdrawal|atm.*fee'
+      name: 'ATM Withdrawal'
+      institution: null
+      type: 'cash'
+
+    - pattern: '(?i)check.*\d+'
+      name: 'Check Payment'
+      institution: null
+      type: 'check'
+
+    - pattern: '(?i)debit card|visa debit|debit purchase'
+      name: 'Debit Card Purchase'
+      institution: null
+      type: 'debit_card'

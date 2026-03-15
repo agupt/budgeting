@@ -2,6 +2,21 @@
 
 payment_destinations:
   credit_cards:
+    - pattern: '(?i)applecard|apple.*card|gsbank.*payment'
+      name: 'Apple Card (Goldman Sachs)'
+      institution: 'Goldman Sachs'
+      type: 'credit_card'
+
+    - pattern: '(?i)barclaycard|barclay.*card'
+      name: 'Barclays Credit Card'
+      institution: 'Barclays'
+      type: 'credit_card'
+
+    - pattern: '(?i)wells fargo.*card|wf.*credit.*card|wellsfargo.*card'
+      name: 'Wells Fargo Credit Card'
+      institution: 'Wells Fargo'
+      type: 'credit_card'
+
     - pattern: '(?i)chase.*credit|chase.*card'
       name: 'Chase Credit Card'
       institution: 'Chase'
@@ -75,6 +90,11 @@ payment_destinations:
       type: 'bill'
 
   transfers:
+    - pattern: '(?i)wuvisaaft|western union|pmnt sent.*wu'
+      name: 'Western Union'
+      institution: 'Western Union'
+      type: 'transfer'
+
     - pattern: '(?i)online transfer|xfer|transfer to|transfer from'
       name: 'Internal Transfer'
       institution: null
@@ -91,10 +111,15 @@ payment_destinations:
       type: 'transfer'
 
   other:
-    - pattern: '(?i)atm withdrawal|atm.*fee'
+    - pattern: '(?i)atm withdrawal|atm.*fee|^withdrawal'
       name: 'ATM Withdrawal'
       institution: null
       type: 'cash'
+
+    - pattern: '(?i)safebox|safe.*box.*rental|safe.*deposit.*box'
+      name: 'Safe Deposit Box Fee'
+      institution: 'Bank of America'
+      type: 'bill'
 
     - pattern: '(?i)check.*\d+'
       name: 'Check Payment'

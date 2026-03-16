@@ -149,54 +149,171 @@ class TechCUAdapter(BaseBankAdapter):
         return info
 
     def parse_transactions(self, text: str) -> List[ParsedTransaction]:
-        """Parse transactions from TechCU statement."""
-        transactions = []
+        """Parse transactions from TechCU statement (legacy method - returns flat list)."""
+        # Use new multi-account parser and flatten results for backward compatibility
+        accounts_data = self.parse_multi_account_statement(text)
 
+        all_transactions = []
+        for account_data in accounts_data:
+            all_transactions.extend(account_data['transactions'])
+
+        return all_transactions
+
+    def parse_multi_account_statement(self, text: str) -> List[Dict]:
+        """
+        Parse TechCU statement with multiple account sections (checking + savings).
+
+        Returns:
+            List of account data dicts, each containing:
+            - account_type: 'checking' or 'savings'
+            - account_name: e.g., 'PRIMARY CHECKING'
+            - starting_balance: float
+            - ending_balance: float
+            - transactions: List[ParsedTransaction]
+            - summary: dict with deposits_count, deposits_total, withdrawals_count, withdrawals_total
+        """
+        accounts_data = []
         lines = text.split('\n')
-        in_transaction_section = False
 
-        # Pattern: MM/DD Description $XXX.XX $X,XXX.XX
-        transaction_pattern = re.compile(
-            r'(\d{1,2}/\d{1,2})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})\s+(\$?[\d,]+\.\d{2})?'
-        )
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
 
-        # Assume current year for transactions (TechCU often omits year)
-        current_year = datetime.now().year
+            # Detect account section header (e.g., "PRIMARY CHECKING", "PRIMARY SAVINGS")
+            account_type_match = re.search(r'(PRIMARY\s+)?(CHECKING|SAVINGS)$', line, re.IGNORECASE)
+            if account_type_match:
+                account_name = line.strip()
+                account_type = account_type_match.group(2).lower()
 
-        for line in lines:
-            # Detect transaction section
-            if re.search(r'Transaction Details|TRANSACTION DETAIL', line, re.IGNORECASE):
-                in_transaction_section = True
+                # Look for starting balance
+                i += 1
+                starting_balance = None
+                while i < len(lines):
+                    line = lines[i].strip()
+                    start_match = re.search(r'(\d{1,2}/\d{1,2})\s+Starting Balance\s+\$?([\d,]+\.\d{2})', line, re.IGNORECASE)
+                    if start_match:
+                        starting_balance = float(start_match.group(2).replace(',', ''))
+                        i += 1
+                        break
+                    i += 1
+
+                # Parse transactions until ending balance
+                transactions = []
+                ending_balance = None
+                year_match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', text)
+                current_year = int(year_match.group(3)) if year_match else datetime.now().year
+
+                # Skip header line ("Date Transaction Description Amount Balance")
+                while i < len(lines):
+                    line = lines[i].strip()
+                    if re.match(r'^Date\s+Transaction', line, re.IGNORECASE):
+                        i += 1
+                        break
+                    i += 1
+
+                # Transaction pattern: MM/DD Description Amount Balance
+                transaction_pattern = re.compile(
+                    r'^(\d{1,2}/\d{1,2})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})(?:\s+\$?([\d,]+\.\d{2}))?$'
+                )
+
+                while i < len(lines):
+                    line = lines[i].strip()
+
+                    # Check for ending balance (can be split across two lines)
+                    # Line 1: "2/28 Ending Balance for PRIMARY CHECKING"
+                    # Line 2: "$2,397.11"
+                    if re.search(r'(\d{1,2}/\d{1,2})\s+Ending Balance', line, re.IGNORECASE):
+                        # Check if amount is on the same line
+                        amount_match = re.search(r'\$?([\d,]+\.\d{2})', line)
+                        if amount_match:
+                            ending_balance = float(amount_match.group(1).replace(',', ''))
+                        else:
+                            # Amount is on the next line
+                            i += 1
+                            if i < len(lines):
+                                next_line = lines[i].strip()
+                                amount_match = re.search(r'^\$?([\d,]+\.\d{2})$', next_line)
+                                if amount_match:
+                                    ending_balance = float(amount_match.group(1).replace(',', ''))
+                        i += 1
+                        break
+
+                    # Check if we've reached the summary (end of account section)
+                    if re.search(r'^Summary:', line, re.IGNORECASE):
+                        break
+
+                    # Try to match transaction
+                    trans_match = transaction_pattern.match(line)
+                    if trans_match:
+                        date_str, description, amount_str, balance_str = trans_match.groups()
+
+                        try:
+                            # Parse date
+                            trans_date = datetime.strptime(f"{date_str}/{current_year}", "%m/%d/%Y").date()
+
+                            # Parse amount
+                            amount = float(amount_str.replace('$', '').replace(',', ''))
+
+                            # Parse balance if present
+                            balance = None
+                            if balance_str:
+                                balance = float(balance_str.replace(',', ''))
+
+                            transactions.append(ParsedTransaction(
+                                date=trans_date,
+                                description=description.strip(),
+                                amount=amount,
+                                balance=balance
+                            ))
+                        except (ValueError, AttributeError):
+                            pass
+
+                    i += 1
+
+                # Parse summary line
+                summary = {
+                    'deposits_count': 0,
+                    'deposits_total': 0.0,
+                    'withdrawals_count': 0,
+                    'withdrawals_total': 0.0
+                }
+
+                # Look for summary within next few lines
+                for j in range(i, min(i + 10, len(lines))):
+                    summary_line = lines[j].strip()
+                    # Pattern: "Summary: 1 Deposit : $2,500.00 4 Withdrawals : $-1,337.45"
+                    # Or: "Summary: 3 Deposits : $1,025.81 YTD Dividends Paid : $25.81"
+                    if re.search(r'^Summary:', summary_line, re.IGNORECASE):
+                        # Extract deposits
+                        deposits_match = re.search(r'(\d+)\s+Deposits?\s*:\s*\$?([\d,]+\.\d{2})', summary_line, re.IGNORECASE)
+                        if deposits_match:
+                            summary['deposits_count'] = int(deposits_match.group(1))
+                            summary['deposits_total'] = float(deposits_match.group(2).replace(',', ''))
+
+                        # Extract withdrawals
+                        withdrawals_match = re.search(r'(\d+)\s+Withdrawals?\s*:\s*\$?(-?[\d,]+\.\d{2})', summary_line, re.IGNORECASE)
+                        if withdrawals_match:
+                            summary['withdrawals_count'] = int(withdrawals_match.group(1))
+                            summary['withdrawals_total'] = float(withdrawals_match.group(2).replace(',', ''))
+
+                        i = j + 1
+                        break
+
+                # Add account data
+                accounts_data.append({
+                    'account_type': account_type,
+                    'account_name': account_name,
+                    'starting_balance': starting_balance,
+                    'ending_balance': ending_balance,
+                    'transactions': transactions,
+                    'summary': summary
+                })
+
                 continue
 
-            # Exit at summary
-            if re.search(r'Balance Summary|BALANCE SUMMARY', line, re.IGNORECASE):
-                in_transaction_section = False
+            i += 1
 
-            if in_transaction_section:
-                match = transaction_pattern.search(line)
-                if match:
-                    date_str, description, amount_str, balance_str = match.groups()
-
-                    # Parse date (add year)
-                    trans_date = datetime.strptime(f"{date_str}/{current_year}", "%m/%d/%Y").date()
-
-                    # Parse amount
-                    amount = float(amount_str.replace('$', '').replace(',', ''))
-
-                    # Parse balance
-                    balance = None
-                    if balance_str:
-                        balance = float(balance_str.replace('$', '').replace(',', ''))
-
-                    transactions.append(ParsedTransaction(
-                        date=trans_date,
-                        description=description.strip(),
-                        amount=amount,
-                        balance=balance
-                    ))
-
-        return transactions
+        return accounts_data
 
 
 def get_adapter(pdf_path: str, config: Dict) -> BaseBankAdapter:

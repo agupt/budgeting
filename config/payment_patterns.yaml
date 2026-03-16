@@ -1,6 +1,38 @@
 # Payment destination detection patterns
+#
+# IMPORTANT: Pattern order matters! More specific patterns must come before
+# more general ones to avoid false matches.
+#
+# Order: mortgages → taxes → loans → credit_cards → others
 
 payment_destinations:
+  # Mortgages (must come before credit_cards to avoid false matches)
+  mortgages:
+    - pattern: '(?i)wf.*home.*mtg|wf.*mortgage|wells fargo.*mortgage|wellsfargo.*home.*loan'
+      name: 'Wells Fargo Mortgage'
+      institution: 'Wells Fargo'
+      type: 'mortgage'
+
+    - pattern: '(?i)chase.*mortgage|chase.*home.*loan|chase.*mtg'
+      name: 'Chase Mortgage'
+      institution: 'Chase'
+      type: 'mortgage'
+
+  # Taxes
+  taxes:
+    - pattern: '(?i)property.*tax|county.*tax|tax.*collector|alameda.*county|contra.*costa.*county.*tax'
+      name: 'Property Tax'
+      institution: null
+      type: 'tax'
+
+  # Loans (also specific, before credit cards)
+  loans:
+    - pattern: '(?i)online banking payment to csl|payment to csl \d+'
+      name: 'Bank of America Car Loan'
+      institution: 'Bank of America'
+      type: 'loan'
+
+  # Credit cards (after mortgages/loans to avoid false matches)
   credit_cards:
     - pattern: '(?i)applecard|apple.*card|gsbank.*payment'
       name: 'Apple Card (Goldman Sachs)'
@@ -114,12 +146,6 @@ payment_destinations:
       name: 'Wire Transfer'
       institution: null
       type: 'transfer'
-
-  loans:
-    - pattern: '(?i)online banking payment to csl|payment to csl \d+'
-      name: 'Bank of America Car Loan'
-      institution: 'Bank of America'
-      type: 'loan'
 
   investments:
     - pattern: '(?i)coinbase\.com|coinbase'

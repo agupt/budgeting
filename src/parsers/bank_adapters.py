@@ -125,7 +125,19 @@ class TechCUAdapter(BaseBankAdapter):
 
     def detect_statement_type(self, text: str) -> bool:
         """Check if this is a TechCU statement."""
-        return bool(re.search(r'Technology Credit Union|TechCU', text, re.IGNORECASE))
+        # Check for multiple TechCU-specific patterns
+        patterns = [
+            r'Technology Credit Union|TechCU',  # Original pattern (for older statements)
+            r'Member Number:.*?(PRIMARY|BASIC)?(SAVINGS|CHECKING)',  # Member number + account type
+            r'RTN:?\s*121181976',  # TechCU routing number
+            r'(PRIMARYSAVINGS|BASICCHECKING|PREMIUMCHECKING)',  # TechCU account type identifiers
+        ]
+
+        for pattern in patterns:
+            if re.search(pattern, text, re.IGNORECASE | re.DOTALL):
+                return True
+
+        return False
 
     def extract_account_info(self, text: str) -> Dict:
         """Extract account metadata."""
@@ -179,10 +191,13 @@ class TechCUAdapter(BaseBankAdapter):
         while i < len(lines):
             line = lines[i].strip()
 
-            # Detect account section header (e.g., "PRIMARY CHECKING", "PRIMARY SAVINGS")
-            account_type_match = re.search(r'(PRIMARY\s+)?(CHECKING|SAVINGS)$', line, re.IGNORECASE)
-            if account_type_match:
-                account_name = line.strip()
+            # Detect account section header
+            # Formats: "PRIMARY CHECKING", "PRIMARYSAVINGS1000000349278", "BASIC CHECKING", etc.
+            # Must have account prefix (PRIMARY/BASIC/PREMIUM) OR be all caps with numbers
+            account_type_match = re.search(r'(PRIMARY|BASIC|PREMIUM)\s*(SAVINGS|CHECKING)', line, re.IGNORECASE)
+            if account_type_match and not re.search(r'Ending\s*Balance', line, re.IGNORECASE):
+                # Extract account name (normalize with space)
+                account_name = f"{account_type_match.group(1).upper()} {account_type_match.group(2).upper()}"
                 account_type = account_type_match.group(2).lower()
 
                 # Look for starting balance
@@ -190,7 +205,7 @@ class TechCUAdapter(BaseBankAdapter):
                 starting_balance = None
                 while i < len(lines):
                     line = lines[i].strip()
-                    start_match = re.search(r'(\d{1,2}/\d{1,2})\s+Starting Balance\s+\$?([\d,]+\.\d{2})', line, re.IGNORECASE)
+                    start_match = re.search(r'(\d{1,2}/\d{1,2})\s+Starting\s*Balance\s+\$?([\d,]+\.\d{2})', line, re.IGNORECASE)
                     if start_match:
                         starting_balance = float(start_match.group(2).replace(',', ''))
                         i += 1
@@ -203,11 +218,16 @@ class TechCUAdapter(BaseBankAdapter):
                 year_match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', text)
                 current_year = int(year_match.group(3)) if year_match else datetime.now().year
 
-                # Skip header line ("Date Transaction Description Amount Balance")
-                while i < len(lines):
+                # Skip header line if present ("Date Transaction Description Amount Balance")
+                # Don't search more than a few lines - if not found, there's no header
+                header_search_start = i
+                while i < len(lines) and (i - header_search_start) < 3:
                     line = lines[i].strip()
                     if re.match(r'^Date\s+Transaction', line, re.IGNORECASE):
                         i += 1
+                        break
+                    if re.search(r'(\d{1,2}/\d{1,2})', line):
+                        # Hit a transaction line, no header present
                         break
                     i += 1
 
@@ -219,10 +239,9 @@ class TechCUAdapter(BaseBankAdapter):
                 while i < len(lines):
                     line = lines[i].strip()
 
-                    # Check for ending balance (can be split across two lines)
-                    # Line 1: "2/28 Ending Balance for PRIMARY CHECKING"
-                    # Line 2: "$2,397.11"
-                    if re.search(r'(\d{1,2}/\d{1,2})\s+Ending Balance', line, re.IGNORECASE):
+                    # Check for ending balance (can be split across two lines or on same line)
+                    # Formats: "2/28 Ending Balance for PRIMARY CHECKING" or "02/28 EndingBalanceforPRIMARYSAVINGS $50,025.45"
+                    if re.search(r'(\d{1,2}/\d{1,2})\s+Ending\s*Balance', line, re.IGNORECASE):
                         # Check if amount is on the same line
                         amount_match = re.search(r'\$?([\d,]+\.\d{2})', line)
                         if amount_match:
@@ -246,6 +265,11 @@ class TechCUAdapter(BaseBankAdapter):
                     trans_match = transaction_pattern.match(line)
                     if trans_match:
                         date_str, description, amount_str, balance_str = trans_match.groups()
+
+                        # Skip starting balance line (it was already extracted)
+                        if 'Starting' in description and 'Balance' in description:
+                            i += 1
+                            continue
 
                         try:
                             # Parse date
@@ -282,16 +306,17 @@ class TechCUAdapter(BaseBankAdapter):
                 for j in range(i, min(i + 10, len(lines))):
                     summary_line = lines[j].strip()
                     # Pattern: "Summary: 1 Deposit : $2,500.00 4 Withdrawals : $-1,337.45"
+                    # Or: "Summary: 1Deposit:$50,000.00" (no spaces)
                     # Or: "Summary: 3 Deposits : $1,025.81 YTD Dividends Paid : $25.81"
                     if re.search(r'^Summary:', summary_line, re.IGNORECASE):
-                        # Extract deposits
-                        deposits_match = re.search(r'(\d+)\s+Deposits?\s*:\s*\$?([\d,]+\.\d{2})', summary_line, re.IGNORECASE)
+                        # Extract deposits (flexible spacing)
+                        deposits_match = re.search(r'(\d+)\s*Deposits?\s*:\s*\$?([\d,]+\.\d{2})', summary_line, re.IGNORECASE)
                         if deposits_match:
                             summary['deposits_count'] = int(deposits_match.group(1))
                             summary['deposits_total'] = float(deposits_match.group(2).replace(',', ''))
 
-                        # Extract withdrawals
-                        withdrawals_match = re.search(r'(\d+)\s+Withdrawals?\s*:\s*\$?(-?[\d,]+\.\d{2})', summary_line, re.IGNORECASE)
+                        # Extract withdrawals (flexible spacing)
+                        withdrawals_match = re.search(r'(\d+)\s*Withdrawals?\s*:\s*\$?(-?[\d,]+\.\d{2})', summary_line, re.IGNORECASE)
                         if withdrawals_match:
                             summary['withdrawals_count'] = int(withdrawals_match.group(1))
                             summary['withdrawals_total'] = float(withdrawals_match.group(2).replace(',', ''))

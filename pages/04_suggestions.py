@@ -15,6 +15,44 @@ st.set_page_config(page_title="Import Suggestions", page_icon="💡", layout="wi
 st.title("💡 Import Suggestions")
 st.markdown("Based on your cash flow, here's what to import next for deeper insights.")
 
+# Reprocess payment detection button
+with st.sidebar:
+    st.markdown("---")
+    st.subheader("🔄 Tools")
+    if st.button("Reprocess Payment Detection", help="Re-run payment detection with current patterns"):
+        with st.spinner("Reprocessing payment detection..."):
+            from src.analyzers.payment_detector import PaymentDetector
+
+            temp_session = get_session()
+            detector = PaymentDetector()
+
+            transactions = temp_session.query(Transaction).all()
+            total = len(transactions)
+
+            if total == 0:
+                st.warning("No transactions to process")
+            else:
+                newly_detected = 0
+                changed = 0
+
+                for trans in transactions:
+                    old_dest_id = trans.payment_destination_id
+                    new_dest = detector.get_or_create_destination(temp_session, trans.description)
+
+                    if not old_dest_id and new_dest:
+                        trans.payment_destination_id = new_dest.id
+                        newly_detected += 1
+                    elif old_dest_id and new_dest and old_dest_id != new_dest.id:
+                        trans.payment_destination_id = new_dest.id
+                        changed += 1
+
+                temp_session.commit()
+                temp_session.close()
+
+                st.success(f"✓ Reprocessed {total:,} transactions")
+                st.info(f"Newly detected: {newly_detected} | Changed: {changed}")
+                st.rerun()
+
 session = get_session()
 
 # Get all checking/savings accounts

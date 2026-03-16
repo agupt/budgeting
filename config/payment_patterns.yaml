@@ -90,6 +90,11 @@ payment_destinations:
       type: 'bill'
 
   transfers:
+    - pattern: '(?i)xoom\.com|xoom.*debit'
+      name: 'Xoom (Remittance)'
+      institution: 'Xoom'
+      type: 'transfer'
+
     - pattern: '(?i)wuvisaaft|western union|pmnt sent.*wu'
       name: 'Western Union'
       institution: 'Western Union'
@@ -110,8 +115,20 @@ payment_destinations:
       institution: null
       type: 'transfer'
 
+  loans:
+    - pattern: '(?i)online banking payment to csl|payment to csl \d+'
+      name: 'Bank of America Car Loan'
+      institution: 'Bank of America'
+      type: 'loan'
+
+  investments:
+    - pattern: '(?i)coinbase\.com|coinbase'
+      name: 'Coinbase'
+      institution: 'Coinbase'
+      type: 'investment'
+
   other:
-    - pattern: '(?i)atm withdrawal|atm.*fee|^withdrawal'
+    - pattern: '(?i)bkofamerica atm|atm.*withdrwl|withdrwl|withdrawal|atm.*fee'
       name: 'ATM Withdrawal'
       institution: null
       type: 'cash'

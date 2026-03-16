@@ -64,7 +64,7 @@ payment_destinations:
       institution: 'American Express'
       type: 'credit_card'
 
-    - pattern: '(?i)discover.*card'
+    - pattern: '(?i)discover.*card|achdiscover|discover'
       name: 'Discover Card'
       institution: 'Discover'
       type: 'credit_card'
@@ -101,9 +101,14 @@ payment_destinations:
       type: 'payment_service'
 
   utilities:
-    - pattern: '(?i)pg&e|pacific gas'
+    - pattern: '(?i)pg&e|pgande|pacific gas'
       name: 'PG&E'
       institution: 'PG&E'
+      type: 'bill'
+
+    - pattern: '(?i)ebmud'
+      name: 'EBMUD'
+      institution: 'EBMUD'
       type: 'bill'
 
     - pattern: '(?i)comcast|xfinity'
@@ -154,7 +159,7 @@ payment_destinations:
       type: 'investment'
 
   other:
-    - pattern: '(?i)bkofamerica atm|atm.*withdrwl|withdrwl|withdrawal|atm.*fee'
+    - pattern: '(?i)bkofamerica atm|atm.*withdrwl|atm withdrawal|atm.*fee|^withdrawal$'
       name: 'ATM Withdrawal'
       institution: null
       type: 'cash'
